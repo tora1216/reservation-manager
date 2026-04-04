@@ -9,10 +9,11 @@ function toggleDay(days: number[], day: number): number[] {
 import { subscribeCategories, addCategory, deleteCategory, reorderCategories, type Category } from '@/app/lib/categories'
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
+const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
 const RELEASE_TYPES: { value: ReleaseType; label: string }[] = [
-  { value: 'weekly',  label: '毎週' },
   { value: 'monthly', label: '毎月' },
+  { value: 'weekly',  label: '毎週' },
   { value: 'daily',   label: '毎日' },
 ]
 
@@ -61,7 +62,7 @@ function releaseScheduleText(shop: Shop): string {
   const { releaseType, releaseDays, releaseTime } = shop
   const t = releaseTime ? ` ${releaseTime}` : ''
   if (releaseType === 'weekly' && releaseDays.length > 0) {
-    const sorted = [...releaseDays].sort((a, b) => a - b)
+    const sorted = [...releaseDays].sort((a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b))
     const labels = sorted.map((d) => `${DAY_LABELS[d]}曜日`).join('・')
     return `毎週${labels}${t} に枠開放`
   }
@@ -198,9 +199,9 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl dark:bg-gray-900 dark:border-gray-800">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">設定</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
@@ -247,11 +248,11 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/20">
                   <input type="text" value={newEmoji} onChange={(e) => setNewEmoji(e.target.value)}
                     placeholder="🏷️" maxLength={4}
-                    className="w-10 text-center border border-gray-200 rounded-lg px-1 py-1 text-lg outline-none focus:border-indigo-400 bg-white" />
+                    className="w-10 text-center border border-gray-200 rounded-lg px-1 py-1 text-[16px] text-gray-900 outline-none focus:border-indigo-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
                   <input ref={labelRef} type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } }}
                     placeholder="カテゴリ名"
-                    className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 bg-white" />
+                    className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
                   <button onClick={confirmAdd} disabled={!newLabel.trim()}
                     className="text-indigo-600 hover:text-indigo-800 disabled:opacity-30 transition-colors p-1" aria-label="確定">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -320,9 +321,9 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl dark:bg-gray-900 dark:border-gray-800">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">{isEdit ? 'お店を編集' : 'お店を追加'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
@@ -338,24 +339,32 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">お店の名前 <span className="text-red-500">*</span></label>
             <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError('') }}
               placeholder="例: 銀座 〇〇レストラン"
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
 
           {/* カテゴリ */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">カテゴリ</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+              <button type="button" onClick={() => setCategory('')}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                  category === ''
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                }`}>
+                なし
+              </button>
               {categories.map((cat) => (
                 <button key={cat.id} type="button"
                   onClick={() => setCategory(category === cat.label ? '' : cat.label)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all border min-w-[64px] ${
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
                     category === cat.label
                       ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
-                  <span className="text-xl leading-none">{cat.emoji}</span>
-                  <span className="text-xs">{cat.label}</span>
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
                 </button>
               ))}
             </div>
@@ -383,20 +392,20 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             {releaseType === 'weekly' && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex gap-1.5">
-                  {DAY_LABELS.map((label, i) => (
-                    <button key={i} type="button" onClick={() => setReleaseDays((prev) => toggleDay(prev, i))}
+                  {WEEKDAY_DISPLAY_ORDER.map((dayIndex) => (
+                    <button key={dayIndex} type="button" onClick={() => setReleaseDays((prev) => toggleDay(prev, dayIndex))}
                       className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
-                        releaseDays.includes(i)
+                        releaseDays.includes(dayIndex)
                           ? 'bg-indigo-500 text-white border-indigo-500'
                           : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
                       }`}>
-                      {label}
+                      {DAY_LABELS[dayIndex]}
                     </button>
                   ))}
                 </div>
                 {releaseDays.length > 1 && (
                   <p className="text-xs text-gray-400">
-                    {[...releaseDays].sort((a, b) => a - b).map((d) => `${DAY_LABELS[d]}曜日`).join('・')} に開放
+                    {[...releaseDays].sort((a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b)).map((d) => `${DAY_LABELS[d]}曜日`).join('・')} に開放
                   </p>
                 )}
               </div>
@@ -414,7 +423,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
                     setReleaseDays(isNaN(v) ? [] : [Math.min(31, Math.max(1, v))])
                   }}
                   placeholder="1"
-                  className="w-16 border border-gray-200 rounded-xl px-3 py-2 text-sm text-center outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  className="w-16 border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 text-center outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 />
                 <span className="text-sm text-gray-600">日</span>
               </div>
@@ -425,7 +434,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">開放時刻</span>
                 <input type="time" value={releaseTime} onChange={(e) => setReleaseTime(e.target.value)}
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
+                  className="border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
             )}
           </div>
@@ -435,7 +444,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">予約サイトURL</label>
             <input type="url" value={reservationUrl} onChange={(e) => setReservationUrl(e.target.value)}
               placeholder="https://..."
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
           </div>
 
           {/* メモ */}
@@ -443,7 +452,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">メモ</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
               placeholder="自由記入欄" rows={3}
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
           </div>
 
           <div className="flex gap-3 pt-1">
@@ -472,6 +481,8 @@ export default function ShopList() {
   const [loading, setLoading] = useState(true)
   const [deleteError, setDeleteError] = useState('')
   const [isDark, setIsDark] = useState(false)
+  const [filterCategory, setFilterCategory] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<'release' | 'registered' | 'name'>('release')
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains('dark'))
@@ -538,6 +549,42 @@ export default function ShopList() {
         </div>
       </header>
 
+      {!loading && categories.length > 0 && (
+        <div className="sticky top-14 z-30 bg-gray-50 dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800">
+          <div className="max-w-2xl mx-auto px-4 py-2 flex items-center gap-2">
+            <div className="flex gap-2 overflow-x-auto flex-1" style={{ scrollbarWidth: 'none' }}>
+              <button onClick={() => setFilterCategory(null)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  filterCategory === null
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                }`}>
+                すべて
+              </button>
+              {categories.map((cat) => (
+                <button key={cat.id} onClick={() => setFilterCategory(filterCategory === cat.label ? null : cat.label)}
+                  className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    filterCategory === cat.label
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                  }`}>
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              ))}
+            </div>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              className="shrink-0 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
+              <option value="release">開放順</option>
+              <option value="registered">登録順</option>
+              <option value="name">名前順</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-2xl mx-auto px-4 py-6 pb-28">
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{deleteError}</div>
@@ -559,13 +606,26 @@ export default function ShopList() {
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">右下の + ボタンから追加できます</p>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {shops.map((shop) => (
-              <ShopCard key={shop.id} shop={shop} categories={categories} onEdit={setEditTarget} onDelete={handleDelete} />
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const filtered = filterCategory ? shops.filter((s) => s.category === filterCategory) : shops
+          const sorted = [...filtered].sort((a, b) => {
+            if (sortOrder === 'name') return a.name.localeCompare(b.name, 'ja')
+            if (sortOrder === 'registered') return (b.createdAt > a.createdAt ? 1 : -1)
+            // release: 次回開放が近い順、未設定は末尾
+            const da = getNextRelease(a)?.daysAway ?? Infinity
+            const db = getNextRelease(b)?.daysAway ?? Infinity
+            return da - db
+          })
+          return sorted.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-16">このカテゴリのお店はありません</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {sorted.map((shop) => (
+                <ShopCard key={shop.id} shop={shop} categories={categories} onEdit={setEditTarget} onDelete={handleDelete} />
+              ))}
+            </div>
+          )
+        })()}
       </main>
 
       <button onClick={() => setAddOpen(true)}
