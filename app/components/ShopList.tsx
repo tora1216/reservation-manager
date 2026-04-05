@@ -64,10 +64,10 @@ function releaseScheduleText(shop: Shop): string {
   if (releaseType === 'weekly' && releaseDays.length > 0) {
     const sorted = [...releaseDays].sort((a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b))
     const labels = sorted.map((d) => `${DAY_LABELS[d]}曜日`).join('・')
-    return `毎週${labels}${t} に枠開放`
+    return `毎週${labels}${t} 予約開始`
   }
-  if (releaseType === 'monthly' && releaseDays.length > 0) return `毎月${releaseDays[0]}日${t} に枠開放`
-  if (releaseType === 'daily') return `毎日${t} に枠開放`
+  if (releaseType === 'monthly' && releaseDays.length > 0) return `毎月${releaseDays[0]}日${t} 予約開始`
+  if (releaseType === 'daily') return `毎日${t} 予約開始`
   return ''
 }
 
@@ -76,9 +76,9 @@ function formatDate(date: Date): string {
 }
 
 function ReleaseBadge({ daysAway }: { daysAway: number }) {
-  if (daysAway === 0) return <span className="inline-block rounded-full bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5">本日受付</span>
+  if (daysAway === 0) return <span className="inline-block rounded-full bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 dark:bg-red-900/40 dark:text-red-400">本日受付</span>
   return (
-    <span className={`inline-block rounded-full text-xs font-semibold px-2 py-0.5 ${daysAway <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+    <span className={`inline-block rounded-full text-xs font-semibold px-2 py-0.5 ${daysAway <= 3 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'}`}>
       あと {daysAway} 日
     </span>
   )
@@ -102,7 +102,7 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base font-semibold text-gray-900 truncate dark:text-white">{shop.name}</h2>
             {shop.category && (
-              <span className="shrink-0 text-xs bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 font-medium">
+              <span className="shrink-0 text-xs bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 font-medium dark:bg-indigo-900/40 dark:text-indigo-400">
                 {cat?.emoji} {shop.category}
               </span>
             )}
@@ -174,6 +174,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const labelRef = useRef<HTMLInputElement>(null)
+  const touchState = useRef<{ startId: string; overId: string | null }>({ startId: '', overId: null })
 
   function startAdding() {
     setAdding(true); setNewEmoji(''); setNewLabel('')
@@ -187,14 +188,42 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
     setNewEmoji(''); setNewLabel(''); setAdding(false)
   }
 
-  function handleDrop(targetId: string) {
-    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return }
-    const from = categories.findIndex((c) => c.id === draggingId)
-    const to = categories.findIndex((c) => c.id === targetId)
+  function applyReorder(fromId: string, toId: string) {
+    if (fromId === toId) return
+    const from = categories.findIndex((c) => c.id === fromId)
+    const to = categories.findIndex((c) => c.id === toId)
     const reordered = [...categories]
     const [moved] = reordered.splice(from, 1)
     reordered.splice(to, 0, moved)
     reorderCategories(reordered.map((c) => c.id))
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return }
+    applyReorder(draggingId, targetId)
+    setDraggingId(null); setDragOverId(null)
+  }
+
+  function handleTouchStart(id: string) {
+    setDraggingId(id)
+    touchState.current = { startId: id, overId: null }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    e.preventDefault()
+    const touch = e.touches[0]
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    const row = el?.closest('[data-cat-id]') as HTMLElement | null
+    const overId = row?.dataset.catId ?? null
+    if (overId && overId !== touchState.current.startId) {
+      touchState.current.overId = overId
+      setDragOverId(overId)
+    }
+  }
+
+  function handleTouchEnd() {
+    const { startId, overId } = touchState.current
+    if (overId) applyReorder(startId, overId)
     setDraggingId(null); setDragOverId(null)
   }
 
@@ -218,13 +247,18 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
             </div>
             <div className="flex flex-col divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
               {categories.map((cat) => (
-                <div key={cat.id} draggable
+                <div key={cat.id} data-cat-id={cat.id} draggable
                   onDragStart={() => setDraggingId(cat.id)}
                   onDragOver={(e) => { e.preventDefault(); if (cat.id !== draggingId) setDragOverId(cat.id) }}
                   onDrop={() => handleDrop(cat.id)}
                   onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
                   className={`flex items-center gap-3 px-3 py-3 bg-white dark:bg-gray-900 transition-all select-none ${draggingId === cat.id ? 'opacity-40' : ''} ${dragOverId === cat.id && draggingId !== cat.id ? 'border-t-2 border-indigo-400' : ''}`}>
-                  <span className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0">
+                  <span
+                    className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0"
+                    style={{ touchAction: 'none' }}
+                    onTouchStart={() => handleTouchStart(cat.id)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                       <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
                       <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
@@ -370,9 +404,9 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             </div>
           </div>
 
-          {/* 枠開放スケジュール */}
+          {/* 予約開始スケジュール */}
           <div className="flex flex-col gap-3">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">枠開放スケジュール</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">予約開始スケジュール</label>
 
             {/* タイプ選択 */}
             <div className="flex gap-2">
@@ -381,7 +415,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
                     releaseType === value
                       ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
                   {label}
                 </button>
@@ -397,7 +431,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
                       className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
                         releaseDays.includes(dayIndex)
                           ? 'bg-indigo-500 text-white border-indigo-500'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                       }`}>
                       {DAY_LABELS[dayIndex]}
                     </button>
@@ -414,7 +448,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             {/* 毎月: 日付 */}
             {releaseType === 'monthly' && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">毎月</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">毎月</span>
                 <input
                   type="number" min="1" max="31"
                   value={releaseDays[0] ?? ''}
@@ -425,14 +459,14 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
                   placeholder="1"
                   className="w-16 border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 text-center outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 />
-                <span className="text-sm text-gray-600">日</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">日</span>
               </div>
             )}
 
             {/* 開放時刻 (共通) */}
             {releaseType && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">開放時刻</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">開放時刻</span>
                 <input type="time" value={releaseTime} onChange={(e) => setReleaseTime(e.target.value)}
                   className="border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
@@ -520,7 +554,6 @@ export default function ShopList() {
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-900 tracking-tight dark:text-white">予約リスト</h1>
           <div className="flex items-center gap-1">
-            <span className="text-sm text-gray-400 dark:text-gray-500 mr-1">{loading ? '' : `${shops.length} 件`}</span>
             <button onClick={toggleTheme}
               className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-800"
               aria-label={isDark ? 'ライトモードに切替' : 'ダークモードに切替'}>
@@ -551,8 +584,8 @@ export default function ShopList() {
 
       {!loading && categories.length > 0 && (
         <div className="sticky top-14 z-30 bg-gray-50 dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800">
-          <div className="max-w-2xl mx-auto px-4 py-2 flex items-center gap-2">
-            <div className="flex gap-2 overflow-x-auto flex-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="max-w-2xl mx-auto px-4 pt-2 pb-1 flex flex-col gap-1">
+            <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               <button onClick={() => setFilterCategory(null)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   filterCategory === null
@@ -569,18 +602,21 @@ export default function ShopList() {
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
                   <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
+                  {filterCategory === cat.label && <span>{cat.label}</span>}
                 </button>
               ))}
             </div>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-              className="shrink-0 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
-              <option value="release">開放順</option>
-              <option value="registered">登録順</option>
-              <option value="name">名前順</option>
-            </select>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-400 dark:text-gray-500">{`${filterCategory ? shops.filter((s) => s.category === filterCategory).length : shops.length} 件`}</span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                className="text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-indigo-400 cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
+                <option value="release">開放順</option>
+                <option value="registered">登録順</option>
+                <option value="name">名前順</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
