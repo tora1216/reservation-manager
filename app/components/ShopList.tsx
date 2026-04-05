@@ -233,7 +233,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl dark:bg-gray-900 dark:border-gray-800">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">設定</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -242,10 +242,10 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
         <div className="px-6 py-5 flex flex-col gap-5">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700">カテゴリ管理</h3>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">カテゴリ管理</h3>
               <span className="text-xs text-gray-400">ドラッグで並び替え</span>
             </div>
-            <div className="flex flex-col divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+            <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden">
               {categories.map((cat) => (
                 <div key={cat.id} data-cat-id={cat.id} draggable
                   onDragStart={() => setDraggingId(cat.id)}
@@ -268,7 +268,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
                   <span className="text-xl w-7 text-center leading-none shrink-0">{cat.emoji}</span>
                   <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">{cat.label}</span>
                   <button onClick={() => deleteCategory(cat.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50 shrink-0" aria-label={`${cat.label}を削除`}>
+                    className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 shrink-0" aria-label={`${cat.label}を削除`}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -301,7 +301,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
                 </div>
               ) : (
                 <button onClick={startAdding}
-                  className="flex items-center gap-2 px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 transition-colors font-medium">
+                  className="flex items-center gap-2 px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors font-medium">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -360,7 +360,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto dark:bg-gray-900">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl dark:bg-gray-900 dark:border-gray-800">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">{isEdit ? 'お店を編集' : 'お店を追加'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
