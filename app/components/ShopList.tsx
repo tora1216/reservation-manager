@@ -583,9 +583,9 @@ export default function ShopList() {
       </header>
 
       {!loading && categories.length > 0 && (
-        <div className="sticky top-14 z-30 bg-gray-50 dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800">
-          <div className="max-w-2xl mx-auto px-4 pt-2 pb-1 flex flex-col gap-1">
-            <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <div className="sticky top-14 z-30 bg-white dark:bg-gray-900">
+          <div className="max-w-2xl mx-auto px-4 pt-2 pb-0 flex flex-col">
+            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
               <button onClick={() => setFilterCategory(null)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   filterCategory === null
@@ -606,7 +606,7 @@ export default function ShopList() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-2 pb-0.5 bg-gray-50 dark:bg-gray-950 -mx-4 px-4">
               <span className="text-sm text-gray-400 dark:text-gray-500">{`${filterCategory ? shops.filter((s) => s.category === filterCategory).length : shops.length} 件`}</span>
               <select
                 value={sortOrder}
@@ -621,7 +621,7 @@ export default function ShopList() {
         </div>
       )}
 
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-28">
+      <main className="max-w-2xl mx-auto px-4 pt-3 pb-28">
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{deleteError}</div>
         )}
