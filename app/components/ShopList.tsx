@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { subscribeShops, addShop, updateShop, deleteShop, type Shop, type ReleaseType } from '@/app/lib/shops'
+import { subscribeShops, addShop, updateShop, deleteShop, reassignCategory, type Shop, type ReleaseType } from '@/app/lib/shops'
 
 function toggleDay(days: number[], day: number): number[] {
   return days.includes(day) ? days.filter((d) => d !== day) : [...days, day]
 }
-import { subscribeCategories, addCategory, deleteCategory, reorderCategories, type Category } from '@/app/lib/categories'
+import { subscribeCategories, addCategory, updateCategory, deleteCategory, reorderCategories, type Category } from '@/app/lib/categories'
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
@@ -63,7 +63,7 @@ function releaseScheduleText(shop: Shop): string {
   const t = releaseTime ? ` ${releaseTime}` : ''
   if (releaseType === 'weekly' && releaseDays.length > 0) {
     const sorted = [...releaseDays].sort((a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b))
-    const labels = sorted.map((d) => `${DAY_LABELS[d]}曜日`).join('・')
+    const labels = sorted.map((d) => DAY_LABELS[d]).join('・')
     return `毎週${labels}${t} 予約開始`
   }
   if (releaseType === 'monthly' && releaseDays.length > 0) return `毎月${releaseDays[0]}日${t} 予約開始`
@@ -71,8 +71,56 @@ function releaseScheduleText(shop: Shop): string {
   return ''
 }
 
+function reservationTargetText(shop: Shop, releaseDate: Date): string {
+  const lead = shop.leadTime ?? 1
+  const unit = shop.leadTimeUnit ?? 'month'
+
+  const target = new Date(releaseDate)
+  if (unit === 'month') {
+    target.setMonth(releaseDate.getMonth() + lead)
+    return `${target.getMonth() + 1}月${target.getDate()}日分`
+  }
+  if (unit === 'week') {
+    target.setDate(releaseDate.getDate() + lead * 7)
+    return `${target.getMonth() + 1}月${target.getDate()}日週分`
+  }
+  // day
+  target.setDate(releaseDate.getDate() + lead)
+  return `${target.getMonth() + 1}月${target.getDate()}日分`
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })
+}
+
+// ─── ConfirmDialog ───────────────────────────────────────────
+function ConfirmDialog({ message, sub, onConfirm, onCancel }: {
+  message: string
+  sub?: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-6"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-xs flex flex-col gap-4 p-6">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{message}</p>
+          {sub && <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onCancel}
+            className="flex-1 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            キャンセル
+          </button>
+          <button onClick={onConfirm}
+            className="flex-1 bg-red-500 text-white rounded-xl py-2 text-sm font-medium hover:bg-red-600 transition-colors">
+            削除する
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ReleaseBadge({ daysAway }: { daysAway: number }) {
@@ -91,6 +139,7 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
   onEdit: (s: Shop) => void
   onDelete: (id: string) => void
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const cat = categories.find((c) => c.label === shop.category)
   const next = getNextRelease(shop)
   const scheduleText = releaseScheduleText(shop)
@@ -102,20 +151,20 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base font-semibold text-gray-900 truncate dark:text-white">{shop.name}</h2>
             {shop.category && (
-              <span className="shrink-0 text-xs bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 font-medium dark:bg-indigo-900/40 dark:text-indigo-400">
+              <span className="shrink-0 text-xs bg-indigo-50 text-indigo-500 rounded-full px-2 py-0.5 font-medium dark:bg-indigo-900/40 dark:text-indigo-400">
                 {cat?.emoji} {shop.category}
               </span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <button onClick={() => onEdit(shop)} className="text-gray-300 hover:text-indigo-400 transition-colors p-1 rounded-lg hover:bg-indigo-50" aria-label="編集">
+          <button onClick={() => onEdit(shop)} className="text-gray-300 hover:text-green-400 transition-colors p-1 rounded-lg hover:bg-green-50" aria-label="編集">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
-          <button onClick={() => onDelete(shop.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50" aria-label="削除">
+          <button onClick={() => setConfirmOpen(true)} className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50" aria-label="削除">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" />
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -125,6 +174,14 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
           </button>
         </div>
       </div>
+
+      {confirmOpen && (
+        <ConfirmDialog
+          message={`「${shop.name}」を削除しますか？`}
+          onConfirm={() => { setConfirmOpen(false); onDelete(shop.id) }}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
 
       {scheduleText ? (
         <div className="flex flex-col gap-1">
@@ -136,8 +193,9 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
             {next && <ReleaseBadge daysAway={next.daysAway} />}
           </div>
           {next && (
-            <p className="text-xs text-gray-400 pl-[22px]">
-              次回: {formatDate(next.date)}{shop.releaseTime && ` ${shop.releaseTime}`}
+            <p className="text-xs text-gray-400 pl-[22px] flex items-center gap-2">
+              <span>次回: {formatDate(next.date)}{shop.releaseTime && ` ${shop.releaseTime}`}</span>
+              <span className="text-indigo-400 font-medium">({reservationTargetText(shop, next.date)})</span>
             </p>
           )}
         </div>
@@ -150,9 +208,20 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
         </div>
       )}
 
+      {shop.notes && (
+        <div className="flex items-start gap-1.5 text-sm text-gray-400">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+          <p className="leading-relaxed">{shop.notes}</p>
+        </div>
+      )}
+
       {shop.reservationUrl && (
         <a href={shop.reservationUrl} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:underline transition-colors w-fit">
+          className="inline-flex items-center gap-1.5 text-sm text-indigo-500 hover:text-indigo-700 hover:underline transition-colors w-fit">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
@@ -160,8 +229,6 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
           <span className="truncate max-w-xs">{shop.reservationUrl}</span>
         </a>
       )}
-
-      {shop.notes && <p className="text-sm text-gray-400 leading-relaxed">{shop.notes}</p>}
     </div>
   )
 }
@@ -171,13 +238,16 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
   const [newEmoji, setNewEmoji] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [adding, setAdding] = useState(false)
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editLabel, setEditLabel] = useState('')
+  const [deletingCat, setDeletingCat] = useState<Category | null>(null)
   const labelRef = useRef<HTMLInputElement>(null)
-  const touchState = useRef<{ startId: string; overId: string | null }>({ startId: '', overId: null })
+  const editLabelRef = useRef<HTMLInputElement>(null)
 
   function startAdding() {
     setAdding(true); setNewEmoji(''); setNewLabel('')
+    setEditingId(null)
     setTimeout(() => labelRef.current?.focus(), 0)
   }
 
@@ -188,43 +258,31 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
     setNewEmoji(''); setNewLabel(''); setAdding(false)
   }
 
-  function applyReorder(fromId: string, toId: string) {
-    if (fromId === toId) return
-    const from = categories.findIndex((c) => c.id === fromId)
-    const to = categories.findIndex((c) => c.id === toId)
+  function startEditing(cat: Category) {
+    setEditingId(cat.id); setEditEmoji(cat.emoji); setEditLabel(cat.label)
+    setAdding(false)
+    setTimeout(() => editLabelRef.current?.focus(), 0)
+  }
+
+  async function confirmEdit() {
+    if (!editingId || !editLabel.trim()) return
+    await updateCategory(editingId, editLabel.trim(), editEmoji.trim() || '🏷️')
+    setEditingId(null)
+  }
+
+  async function execDeleteCategory(cat: Category) {
+    const fallback = categories.find((c) => c.label === 'その他' && c.id !== cat.id)?.label ?? categories.find((c) => c.id !== cat.id)?.label ?? ''
+    await reassignCategory(cat.label, fallback)
+    await deleteCategory(cat.id)
+    setDeletingCat(null)
+  }
+
+  function moveCategory(index: number, direction: -1 | 1) {
+    const next = index + direction
+    if (next < 0 || next >= categories.length) return
     const reordered = [...categories]
-    const [moved] = reordered.splice(from, 1)
-    reordered.splice(to, 0, moved)
+    ;[reordered[index], reordered[next]] = [reordered[next], reordered[index]]
     reorderCategories(reordered.map((c) => c.id))
-  }
-
-  function handleDrop(targetId: string) {
-    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return }
-    applyReorder(draggingId, targetId)
-    setDraggingId(null); setDragOverId(null)
-  }
-
-  function handleTouchStart(id: string) {
-    setDraggingId(id)
-    touchState.current = { startId: id, overId: null }
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    e.preventDefault()
-    const touch = e.touches[0]
-    const el = document.elementFromPoint(touch.clientX, touch.clientY)
-    const row = el?.closest('[data-cat-id]') as HTMLElement | null
-    const overId = row?.dataset.catId ?? null
-    if (overId && overId !== touchState.current.startId) {
-      touchState.current.overId = overId
-      setDragOverId(overId)
-    }
-  }
-
-  function handleTouchEnd() {
-    const { startId, overId } = touchState.current
-    if (overId) applyReorder(startId, overId)
-    setDraggingId(null); setDragOverId(null)
   }
 
   return (
@@ -241,54 +299,79 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
         </div>
         <div className="px-6 py-5 flex flex-col gap-5">
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">カテゴリ管理</h3>
-              <span className="text-xs text-gray-400">ドラッグで並び替え</span>
-            </div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">カテゴリ管理</h3>
             <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden">
-              {categories.map((cat) => (
-                <div key={cat.id} data-cat-id={cat.id} draggable
-                  onDragStart={() => setDraggingId(cat.id)}
-                  onDragOver={(e) => { e.preventDefault(); if (cat.id !== draggingId) setDragOverId(cat.id) }}
-                  onDrop={() => handleDrop(cat.id)}
-                  onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
-                  className={`flex items-center gap-3 px-3 py-3 bg-white dark:bg-gray-900 transition-all select-none ${draggingId === cat.id ? 'opacity-40' : ''} ${dragOverId === cat.id && draggingId !== cat.id ? 'border-t-2 border-indigo-400' : ''}`}>
-                  <span
-                    className="text-gray-300 cursor-grab active:cursor-grabbing shrink-0"
-                    style={{ touchAction: 'none' }}
-                    onTouchStart={() => handleTouchStart(cat.id)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
-                      <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-                      <circle cx="9" cy="19" r="1.5" /><circle cx="15" cy="19" r="1.5" />
-                    </svg>
-                  </span>
-                  <span className="text-xl w-7 text-center leading-none shrink-0">{cat.emoji}</span>
-                  <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">{cat.label}</span>
-                  <button onClick={() => deleteCategory(cat.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 shrink-0" aria-label={`${cat.label}を削除`}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </button>
+              {categories.map((cat, index) => (
+                <div key={cat.id}>
+                  {editingId === cat.id ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-green-50 dark:bg-green-900/20">
+                      <input type="text" value={editEmoji} onChange={(e) => setEditEmoji(e.target.value)}
+                        maxLength={4}
+                        className="w-10 text-center border border-gray-200 rounded-lg px-1 py-1 text-[16px] text-gray-900 outline-none focus:border-green-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      <input ref={editLabelRef} type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmEdit() } }}
+                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[16px] text-gray-900 outline-none focus:border-green-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      <button onClick={confirmEdit} disabled={!editLabel.trim()}
+                        className="text-green-500 hover:text-green-700 disabled:opacity-30 transition-colors p-1" aria-label="確定">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 transition-colors p-1" aria-label="キャンセル">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-3 bg-white dark:bg-gray-900">
+                      <div className="flex flex-col shrink-0">
+                        <button onClick={() => moveCategory(index, -1)} disabled={index === 0}
+                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors leading-none" aria-label="上へ">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="18 15 12 9 6 15" />
+                          </svg>
+                        </button>
+                        <button onClick={() => moveCategory(index, 1)} disabled={index === categories.length - 1}
+                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors leading-none" aria-label="下へ">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      </div>
+                      <span className="text-xl w-7 text-center leading-none shrink-0">{cat.emoji}</span>
+                      <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">{cat.label}</span>
+                      <button onClick={() => startEditing(cat)}
+                        className="text-gray-300 hover:text-green-400 transition-colors p-1 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 shrink-0" aria-label={`${cat.label}を編集`}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => setDeletingCat(cat)}
+                        className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 shrink-0" aria-label={`${cat.label}を削除`}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {adding ? (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/20">
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-green-50 dark:bg-green-900/20">
                   <input type="text" value={newEmoji} onChange={(e) => setNewEmoji(e.target.value)}
                     placeholder="🏷️" maxLength={4}
-                    className="w-10 text-center border border-gray-200 rounded-lg px-1 py-1 text-[16px] text-gray-900 outline-none focus:border-indigo-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                    className="w-10 text-center border border-gray-200 rounded-lg px-1 py-1 text-[16px] text-gray-900 outline-none focus:border-green-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
                   <input ref={labelRef} type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } }}
                     placeholder="カテゴリ名"
-                    className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                    className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[16px] text-gray-900 outline-none focus:border-green-400 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
                   <button onClick={confirmAdd} disabled={!newLabel.trim()}
-                    className="text-indigo-600 hover:text-indigo-800 disabled:opacity-30 transition-colors p-1" aria-label="確定">
+                    className="text-green-500 hover:text-green-700 disabled:opacity-30 transition-colors p-1" aria-label="確定">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
@@ -301,7 +384,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
                 </div>
               ) : (
                 <button onClick={startAdding}
-                  className="flex items-center gap-2 px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors font-medium">
+                  className="flex items-center gap-2 px-4 py-3 text-sm text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors font-medium">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -312,6 +395,14 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
           </div>
         </div>
       </div>
+      {deletingCat && (
+        <ConfirmDialog
+          message={`「${deletingCat.label}」を削除しますか？`}
+          sub="このカテゴリのお店は「その他」に移動されます。"
+          onConfirm={() => execDeleteCategory(deletingCat)}
+          onCancel={() => setDeletingCat(null)}
+        />
+      )}
     </div>
   )
 }
@@ -324,11 +415,13 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
   onSave: (data: Omit<Shop, 'id' | 'createdAt'>) => Promise<void>
 }) {
   const [name, setName] = useState(initialData?.name ?? '')
-  const [category, setCategory] = useState(initialData?.category ?? '')
+  const [category, setCategory] = useState(initialData?.category ?? categories[0]?.label ?? '')
   const [reservationUrl, setReservationUrl] = useState(initialData?.reservationUrl ?? '')
   const [releaseType, setReleaseType] = useState<ReleaseType | null>(initialData?.releaseType ?? null)
   const [releaseDays, setReleaseDays] = useState<number[]>(initialData?.releaseDays ?? [])
   const [releaseTime, setReleaseTime] = useState(initialData?.releaseTime ?? '')
+  const [leadTime, setLeadTime] = useState(initialData?.leadTime ?? 1)
+  const [leadTimeUnit, setLeadTimeUnit] = useState<'month' | 'week' | 'day'>(initialData?.leadTimeUnit ?? 'month')
   const [notes, setNotes] = useState(initialData?.notes ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -348,7 +441,8 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
     if (!name.trim()) { setError('お店の名前を入力してください'); return }
     setSaving(true)
     try {
-      await onSave({ name: name.trim(), category, reservationUrl: reservationUrl.trim(), releaseType, releaseDays, releaseTime, notes: notes.trim() })
+      const resolvedCategory = category || categories[0]?.label || ''
+      await onSave({ name: name.trim(), category: resolvedCategory, reservationUrl: reservationUrl.trim(), releaseType, releaseDays, releaseTime, leadTime, leadTimeUnit, notes: notes.trim() })
     } finally {
       setSaving(false)
     }
@@ -373,7 +467,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">お店の名前 <span className="text-red-500">*</span></label>
             <input type="text" value={name} onChange={(e) => { setName(e.target.value); setError('') }}
               placeholder="例: 銀座 〇〇レストラン"
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
 
@@ -381,24 +475,16 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">カテゴリ</label>
             <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-              <button type="button" onClick={() => setCategory('')}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                  category === ''
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                }`}>
-                なし
-              </button>
               {categories.map((cat) => (
                 <button key={cat.id} type="button"
                   onClick={() => setCategory(category === cat.label ? '' : cat.label)}
                   className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
                     category === cat.label
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                      ? 'bg-green-500 text-white border-green-500'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
                   <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
+                  {category === cat.label && <span>{cat.label}</span>}
                 </button>
               ))}
             </div>
@@ -414,61 +500,77 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
                 <button key={value} type="button" onClick={() => handleTypeChange(value)}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
                     releaseType === value
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                      ? 'bg-green-500 text-white border-green-500'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
                   {label}
                 </button>
               ))}
             </div>
 
-            {/* 毎週: 曜日（複数選択可） */}
-            {releaseType === 'weekly' && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex gap-1.5">
-                  {WEEKDAY_DISPLAY_ORDER.map((dayIndex) => (
-                    <button key={dayIndex} type="button" onClick={() => setReleaseDays((prev) => toggleDay(prev, dayIndex))}
-                      className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all border ${
-                        releaseDays.includes(dayIndex)
-                          ? 'bg-indigo-500 text-white border-indigo-500'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
-                      }`}>
-                      {DAY_LABELS[dayIndex]}
-                    </button>
-                  ))}
-                </div>
-                {releaseDays.length > 1 && (
-                  <p className="text-xs text-gray-400">
-                    {[...releaseDays].sort((a, b) => WEEKDAY_DISPLAY_ORDER.indexOf(a) - WEEKDAY_DISPLAY_ORDER.indexOf(b)).map((d) => `${DAY_LABELS[d]}曜日`).join('・')} に開放
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* 毎月: 日付 */}
-            {releaseType === 'monthly' && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">毎月</span>
-                <input
-                  type="number" min="1" max="31"
-                  value={releaseDays[0] ?? ''}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value)
-                    setReleaseDays(isNaN(v) ? [] : [Math.min(31, Math.max(1, v))])
-                  }}
-                  placeholder="1"
-                  className="w-16 border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 text-center outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                />
-                <span className="text-sm text-gray-600 dark:text-gray-400">日</span>
-              </div>
-            )}
-
-            {/* 開放時刻 (共通) */}
+            {/* サブ設定 */}
             {releaseType && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">開放時刻</span>
-                <input type="time" value={releaseTime} onChange={(e) => setReleaseTime(e.target.value)}
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+              <div className="flex flex-col gap-2.5 bg-gray-50 dark:bg-gray-800/40 rounded-xl px-3 py-3">
+
+                {/* 毎週: 曜日 */}
+                {releaseType === 'weekly' && (
+                  <div className="flex gap-1">
+                    {WEEKDAY_DISPLAY_ORDER.map((dayIndex) => (
+                      <button key={dayIndex} type="button" onClick={() => setReleaseDays((prev) => toggleDay(prev, dayIndex))}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                          releaseDays.includes(dayIndex)
+                            ? 'bg-green-500 text-white border-green-500'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-green-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+                        }`}>
+                        {DAY_LABELS[dayIndex]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 毎月: 日付 */}
+                {releaseType === 'monthly' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400 w-8 shrink-0">毎月</span>
+                    <input
+                      type="number" min="1" max="31"
+                      value={releaseDays[0] ?? ''}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value)
+                        setReleaseDays(isNaN(v) ? [] : [Math.min(31, Math.max(1, v))])
+                      }}
+                      placeholder="1"
+                      className="w-16 border border-gray-200 rounded-lg px-3 py-1.5 text-[16px] text-gray-900 text-center outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">日</span>
+                  </div>
+                )}
+
+                {/* 時刻 (共通) */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 w-8 shrink-0">時刻</span>
+                  <input type="time" value={releaseTime} onChange={(e) => setReleaseTime(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-[16px] text-gray-900 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                </div>
+
+                {/* リードタイム */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 w-8 shrink-0">対象</span>
+                  <input
+                    type="number" min="1" max="99"
+                    value={leadTime}
+                    onChange={(e) => setLeadTime(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-16 border border-gray-200 rounded-lg px-3 py-1.5 text-[16px] text-gray-900 text-center outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  <select
+                    value={leadTimeUnit}
+                    onChange={(e) => setLeadTimeUnit(e.target.value as 'month' | 'week' | 'day')}
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 bg-white outline-none focus:border-green-400 transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300">
+                    <option value="month">ヶ月先</option>
+                    <option value="week">週間先</option>
+                    <option value="day">日先</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
@@ -478,7 +580,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">予約サイトURL</label>
             <input type="url" value={reservationUrl} onChange={(e) => setReservationUrl(e.target.value)}
               placeholder="https://..."
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
           </div>
 
           {/* メモ */}
@@ -486,7 +588,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">メモ</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
               placeholder="自由記入欄" rows={3}
-              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
+              className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
           </div>
 
           <div className="flex gap-3 pt-1">
@@ -495,7 +597,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
               キャンセル
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60">
+              className="flex-1 bg-green-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-60">
               {saving ? '保存中...' : isEdit ? '保存する' : '追加する'}
             </button>
           </div>
@@ -584,13 +686,13 @@ export default function ShopList() {
 
       {!loading && categories.length > 0 && (
         <div className="sticky top-14 z-30 bg-white dark:bg-gray-900">
-          <div className="max-w-2xl mx-auto px-4 pt-2 pb-0 flex flex-col">
-            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="max-w-2xl mx-auto px-4 pt-2 pb-2 flex flex-col">
+            <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               <button onClick={() => setFilterCategory(null)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   filterCategory === null
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-green-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                 }`}>
                 すべて
               </button>
@@ -598,40 +700,42 @@ export default function ShopList() {
                 <button key={cat.id} onClick={() => setFilterCategory(filterCategory === cat.label ? null : cat.label)}
                   className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                     filterCategory === cat.label
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-green-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
                   }`}>
                   <span>{cat.emoji}</span>
                   {filterCategory === cat.label && <span>{cat.label}</span>}
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-2 pb-0.5 bg-gray-50 dark:bg-gray-950 -mx-4 px-4">
-              <span className="text-sm text-gray-400 dark:text-gray-500">{`${filterCategory ? shops.filter((s) => s.category === filterCategory).length : shops.length} 件`}</span>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                className="text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-indigo-400 cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
-                <option value="release">開放順</option>
-                <option value="registered">登録順</option>
-                <option value="name">名前順</option>
-              </select>
-            </div>
           </div>
         </div>
       )}
 
       <main className="max-w-2xl mx-auto px-4 pt-3 pb-28">
+        {!loading && (
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-gray-400 dark:text-gray-500">{`${filterCategory ? shops.filter((s) => s.category === filterCategory).length : shops.length} 件`}</span>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              className="text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-green-400 cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
+              <option value="release">開始順</option>
+              <option value="registered">登録順</option>
+              <option value="name">名前順</option>
+            </select>
+          </div>
+        )}
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{deleteError}</div>
         )}
         {loading ? (
           <div className="flex justify-center py-24">
-            <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-indigo-200 border-t-green-500 rounded-full animate-spin" />
           </div>
         ) : shops.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center dark:bg-indigo-900/30">
+            <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center dark:bg-green-900/30">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
@@ -647,7 +751,7 @@ export default function ShopList() {
           const sorted = [...filtered].sort((a, b) => {
             if (sortOrder === 'name') return a.name.localeCompare(b.name, 'ja')
             if (sortOrder === 'registered') return (b.createdAt > a.createdAt ? 1 : -1)
-            // release: 次回開放が近い順、未設定は末尾
+            // release: 次回開始が近い順、未設定は末尾
             const da = getNextRelease(a)?.daysAway ?? Infinity
             const db = getNextRelease(b)?.daysAway ?? Infinity
             return da - db
@@ -665,7 +769,7 @@ export default function ShopList() {
       </main>
 
       <button onClick={() => setAddOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center z-40"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center z-40"
         aria-label="お店を追加">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />

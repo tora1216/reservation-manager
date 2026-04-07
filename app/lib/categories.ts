@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   deleteDoc,
+  updateDoc,
   doc,
   onSnapshot,
   query,
@@ -72,6 +73,10 @@ export async function reorderCategories(orderedIds: string[]): Promise<void> {
     batch.update(doc(db, COLLECTION, id), { order: index })
   })
   await batch.commit()
+}
+
+export async function updateCategory(id: string, label: string, emoji: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTION, id), { label, emoji })
 }
 
 export async function deleteCategory(id: string): Promise<void> {

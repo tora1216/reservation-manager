@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 
 export type ChangelogEntry = {
   version: string;
@@ -8,6 +8,16 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.2.0",
+    date: "2026-04-07",
+    title: "カテゴリ管理強化・UI改善",
+    changes: [
+      "予約対象日の自動計算・表示",
+      "カテゴリの編集機能を追加",
+      "予約開始スケジュールのフォームUIを整理",
+    ],
+  },
   {
     version: "1.0.0",
     date: "2026-04-05",
