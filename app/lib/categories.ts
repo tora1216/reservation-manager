@@ -29,16 +29,25 @@ const DEFAULTS = [
   { label: 'その他',     emoji: '📌', order: 2 },
 ]
 
+// 初回ロード完了前にスナップショットが空だった場合のみデフォルト投入する
+let _defaultsSeeded = false
+
 export function subscribeCategories(callback: (cats: Category[]) => void): Unsubscribe {
-  // createdAt でフェッチし、order があればクライアント側でソート
   const q = query(collection(db, COLLECTION), orderBy('createdAt', 'asc'))
   return onSnapshot(q, async (snapshot) => {
-    if (snapshot.empty) {
-      for (const d of DEFAULTS) {
-        await addDoc(collection(db, COLLECTION), { ...d, createdAt: serverTimestamp() })
-      }
+    // まだ一度もデータが存在したことがない場合のみデフォルトを投入
+    if (snapshot.empty && !_defaultsSeeded) {
+      _defaultsSeeded = true
+      const batch = writeBatch(db)
+      DEFAULTS.forEach((d) => {
+        batch.set(doc(collection(db, COLLECTION)), { ...d, createdAt: serverTimestamp() })
+      })
+      await batch.commit()
       return
     }
+    // データが存在する状態を一度でも確認したらフラグを立てる
+    if (!snapshot.empty) _defaultsSeeded = true
+
     const cats: Category[] = snapshot.docs.map((d) => ({
       id: d.id,
       label: d.data().label ?? '',

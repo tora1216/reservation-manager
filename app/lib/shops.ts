@@ -31,8 +31,8 @@ export interface Shop {
   releaseDays: number[]
   /** "HH:MM" 形式。空文字=未設定 */
   releaseTime: string
-  /** 予約開放日から何先の予約を受け付けるか（デフォルト1） */
-  leadTime: number
+  /** 予約開放日から何先の予約を受け付けるか（未設定は null） */
+  leadTime: number | null
   /** leadTime の単位: month=ヶ月, week=週間, day=日（デフォルト month） */
   leadTimeUnit: 'month' | 'week' | 'day'
   notes: string
@@ -64,7 +64,7 @@ export function subscribeShops(callback: (shops: Shop[]) => void): Unsubscribe {
         releaseType,
         releaseDays,
         releaseTime: data.releaseTime ?? '',
-        leadTime: data.leadTime ?? 1,
+        leadTime: data.leadTime ?? null,
         leadTimeUnit: data.leadTimeUnit ?? (releaseType === 'weekly' ? 'week' : 'month'),
         notes: data.notes ?? '',
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? '',

@@ -234,7 +234,7 @@ function ShopCard({ shop, categories, onEdit, onDelete }: {
 }
 
 // ─── SettingsModal ───────────────────────────────────────────
-function SettingsModal({ categories, onClose }: { categories: Category[]; onClose: () => void }) {
+function SettingsModal({ categories, onClose, onCategoryDeleted }: { categories: Category[]; onClose: () => void; onCategoryDeleted: (label: string) => void }) {
   const [newEmoji, setNewEmoji] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [adding, setAdding] = useState(false)
@@ -266,7 +266,10 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
 
   async function confirmEdit() {
     if (!editingId || !editLabel.trim()) return
-    await updateCategory(editingId, editLabel.trim(), editEmoji.trim() || '🏷️')
+    const oldLabel = categories.find((c) => c.id === editingId)?.label ?? ''
+    const newLabel = editLabel.trim()
+    await updateCategory(editingId, newLabel, editEmoji.trim() || '🏷️')
+    if (oldLabel && oldLabel !== newLabel) await reassignCategory(oldLabel, newLabel)
     setEditingId(null)
   }
 
@@ -274,6 +277,7 @@ function SettingsModal({ categories, onClose }: { categories: Category[]; onClos
     const fallback = categories.find((c) => c.label === 'その他' && c.id !== cat.id)?.label ?? categories.find((c) => c.id !== cat.id)?.label ?? ''
     await reassignCategory(cat.label, fallback)
     await deleteCategory(cat.id)
+    onCategoryDeleted(cat.label)
     setDeletingCat(null)
   }
 
@@ -420,7 +424,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
   const [releaseType, setReleaseType] = useState<ReleaseType | null>(initialData?.releaseType ?? null)
   const [releaseDays, setReleaseDays] = useState<number[]>(initialData?.releaseDays ?? [])
   const [releaseTime, setReleaseTime] = useState(initialData?.releaseTime ?? '')
-  const [leadTime, setLeadTime] = useState(initialData?.leadTime ?? 1)
+  const [leadTime, setLeadTime] = useState<number | ''>(initialData?.leadTime ?? '')
   const [leadTimeUnit, setLeadTimeUnit] = useState<'month' | 'week' | 'day'>(initialData?.leadTimeUnit ?? 'month')
   const [notes, setNotes] = useState(initialData?.notes ?? '')
   const [error, setError] = useState('')
@@ -442,7 +446,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
     setSaving(true)
     try {
       const resolvedCategory = category || categories[0]?.label || ''
-      await onSave({ name: name.trim(), category: resolvedCategory, reservationUrl: reservationUrl.trim(), releaseType, releaseDays, releaseTime, leadTime, leadTimeUnit, notes: notes.trim() })
+      await onSave({ name: name.trim(), category: resolvedCategory, reservationUrl: reservationUrl.trim(), releaseType, releaseDays, releaseTime, leadTime: leadTime === '' ? 1 : leadTime, leadTimeUnit, notes: notes.trim() })
     } finally {
       setSaving(false)
     }
@@ -587,7 +591,7 @@ function ShopFormModal({ initialData, categories, onClose, onSave }: {
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">メモ</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-              placeholder="自由記入欄" rows={3}
+              placeholder="自由記入欄" rows={1}
               className="border border-gray-200 rounded-xl px-3.5 py-2.5 text-[16px] text-gray-900 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500" />
           </div>
 
@@ -776,7 +780,7 @@ export default function ShopList() {
         </svg>
       </button>
 
-      {settingsOpen && <SettingsModal categories={categories} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal categories={categories} onClose={() => setSettingsOpen(false)} onCategoryDeleted={(label) => { if (filterCategory === label) setFilterCategory(null) }} />}
       {addOpen && <ShopFormModal categories={categories} onClose={() => setAddOpen(false)} onSave={handleAdd} />}
       {editTarget && <ShopFormModal initialData={editTarget} categories={categories} onClose={() => setEditTarget(null)} onSave={handleUpdate} />}
     </div>
